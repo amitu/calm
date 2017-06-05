@@ -19,6 +19,20 @@ type Method
     | HEAD
 
 
+type MimeType = MimeType String
+
+plain : MimeType
+plain =
+    MimeType "text/plain"
+
+html : MimeType
+html =
+    MimeType "text/html"
+
+json : MimeType
+json =
+    MimeType "application/json"
+
 type StatusCode
     = StatusCode Int
 
@@ -68,10 +82,54 @@ request =
 
 
 type Response
-    = HTMLResponse String
+    = TextResponse String
+    | HTMLResponse String
     | JSONResponse JE.Value
-    | Response StatusCode String
+    | Response StatusCode MimeType String
 
+
+respond : String -> Response -> Cmd (Msg msg)
+respond id response =
+    case response of
+        HTMLResponse resp ->
+            responses <|
+                JE.object
+                    [ ( "id", JE.string id )
+                    , ( "code", JE.int 200 )
+                    , ( "body"
+                      , JE.string resp
+                      )
+                    , ( "mimetype", JE.string "text/html" )
+                    ]
+
+        TextResponse resp ->
+            responses <|
+                JE.object
+                    [ ( "id", JE.string id )
+                    , ( "code", JE.int 200 )
+                    , ( "body"
+                      , JE.string resp
+                      )
+                    , ( "mimetype", JE.string "text/plain" )
+                    ]
+
+        JSONResponse resp ->
+            responses <|
+                JE.object
+                    [ ( "id", JE.string id )
+                    , ( "code", JE.int 200 )
+                    , ( "body", resp )
+                    , ( "mimetype", JE.string "application/json" )
+                    ]
+
+        Response (StatusCode code) (MimeType mime) body ->
+            responses <|
+                JE.object
+                    [ ( "id", JE.string id )
+                    , ( "code", JE.int code )
+                    , ( "body", JE.string body )
+                    , ( "mimetype", JE.string mime )
+                    ]
 
 
 -- model
@@ -105,22 +163,40 @@ type Msg msg
     | RMsg String msg
 
 
+
+--gather : Model model msg -> (Model model msg, Cmd (Msg msg))
+
+
+new : Request -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
+new request model =
+    let
+        ( m, cmd ) =
+            model.spec.init request
+
+        resp =
+            model.spec.response m
+
+        requests =
+            model.requests
+                |> Dict.insert request.id m
+    in
+    case resp of
+        Nothing ->
+            ( { model | requests = requests }
+            , cmd |> Cmd.map (RMsg request.id)
+            )
+
+        Just resp ->
+            ( model, respond request.id resp )
+
+
 update : Msg msg -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
 update msg model =
     case Debug.log "msg" msg of
         NewRequest val ->
             case JD.decodeValue request val of
                 Ok request ->
-                    ( model
-                    , responses <|
-                        JE.object
-                            [ ( "id", JE.string request.id )
-                            , ( "code", JE.int 200 )
-                            , ( "body"
-                              , JE.string ("hello world: " ++ request.path)
-                              )
-                            ]
-                    )
+                    new request model
 
                 Err msg ->
                     Debug.crash msg

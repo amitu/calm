@@ -53,7 +53,7 @@ app.ports.responses.subscribe(function(obj){
         return
     }
     res = res.res;
-    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.writeHead(200, {'Content-Type': obj.mimetype});
     res.write(obj.body);
     res.end();
 });
@@ -68,6 +68,5 @@ http.createServer(function (req, res) {
         method: req.method,
         path: req.url,
     };
-    console.log(j, req);
     app.ports.requests.send(j);
 }).listen(8000);
