@@ -1,9 +1,9 @@
-module Server exposing (..)
-
---import HtmlToString
+port module Server exposing (..)
 
 import Dict exposing (Dict)
 import Html exposing (Html)
+import Json.Decode as JD
+import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
 
 
@@ -34,13 +34,37 @@ type alias Cookie =
 
 
 type alias Request =
-    { path : String
+    { id : String
+    , path : String
     , method : Method
-    , get : MultiDict
-    , post : MultiDict
-    , headers : MultiDict
-    , cookies : Dict String Cookie
+
+    -- , get : MultiDict
+    -- , post : MultiDict
+    -- , headers : MultiDict
+    -- , cookies : Dict String Cookie
     }
+
+
+request : JD.Decoder Request
+request =
+    JD.succeed Request
+        |: JD.field "id" JD.string
+        |: JD.field "path" JD.string
+        |: JD.field "method"
+            (JD.string
+                |> JD.andThen
+                    (\v ->
+                        case v of
+                            "GET" ->
+                                JD.succeed GET
+
+                            "POST" ->
+                                JD.succeed POST
+
+                            invalid ->
+                                JD.fail ("invalid method" ++ invalid)
+                    )
+            )
 
 
 type Response
@@ -77,13 +101,32 @@ init spec =
 
 
 type Msg msg
-    = NoOp
+    = NewRequest JD.Value
     | RMsg String msg
 
 
 update : Msg msg -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
 update msg model =
-    ( model, Cmd.none )
+    case Debug.log "msg" msg of
+        NewRequest val ->
+            case JD.decodeValue request val of
+                Ok request ->
+                    ( model
+                    , responses <|
+                        JE.object
+                            [ ( "id", JE.string request.id )
+                            , ( "code", JE.int 200 )
+                            , ( "body"
+                              , JE.string ("hello world: " ++ request.path)
+                              )
+                            ]
+                    )
+
+                Err msg ->
+                    Debug.crash msg
+
+        RMsg id msg ->
+            ( model, Cmd.none )
 
 
 subscriptions : Model model msg -> Sub (Msg msg)
@@ -94,6 +137,7 @@ subscriptions model =
             (\( id, req ) ->
                 model.spec.subscriptions req |> Sub.map (RMsg id)
             )
+        |> (::) (requests NewRequest)
         |> Sub.batch
 
 
@@ -108,3 +152,9 @@ program spec =
         , update = update
         , subscriptions = subscriptions
         }
+
+
+port requests : (JE.Value -> msg) -> Sub msg
+
+
+port responses : JD.Value -> Cmd msg
