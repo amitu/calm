@@ -19,19 +19,24 @@ type Method
     | HEAD
 
 
-type MimeType = MimeType String
+type MimeType
+    = MimeType String
+
 
 plain : MimeType
 plain =
     MimeType "text/plain"
 
+
 html : MimeType
 html =
     MimeType "text/html"
 
+
 json : MimeType
 json =
     MimeType "application/json"
+
 
 type StatusCode
     = StatusCode Int
@@ -54,7 +59,7 @@ type alias Request =
 
     -- , get : MultiDict
     -- , post : MultiDict
-    -- , headers : MultiDict
+    -- , headers : Dict String String
     -- , cookies : Dict String Cookie
     }
 
@@ -88,48 +93,32 @@ type Response
     | Response StatusCode MimeType String
 
 
+respond_ : String -> StatusCode -> MimeType -> JE.Value -> Cmd (Msg msg)
+respond_ id (StatusCode code) (MimeType mime) body =
+    responses <|
+        JE.object
+            [ ( "id", JE.string id )
+            , ( "code", JE.int code )
+            , ( "body", body )
+            , ( "mimetype", JE.string mime )
+            ]
+
+
 respond : String -> Response -> Cmd (Msg msg)
 respond id response =
     case response of
         HTMLResponse resp ->
-            responses <|
-                JE.object
-                    [ ( "id", JE.string id )
-                    , ( "code", JE.int 200 )
-                    , ( "body"
-                      , JE.string resp
-                      )
-                    , ( "mimetype", JE.string "text/html" )
-                    ]
+            respond_ id (StatusCode 200) html (JE.string resp)
 
         TextResponse resp ->
-            responses <|
-                JE.object
-                    [ ( "id", JE.string id )
-                    , ( "code", JE.int 200 )
-                    , ( "body"
-                      , JE.string resp
-                      )
-                    , ( "mimetype", JE.string "text/plain" )
-                    ]
+            respond_ id (StatusCode 200) plain (JE.string resp)
 
         JSONResponse resp ->
-            responses <|
-                JE.object
-                    [ ( "id", JE.string id )
-                    , ( "code", JE.int 200 )
-                    , ( "body", resp )
-                    , ( "mimetype", JE.string "application/json" )
-                    ]
+            respond_ id (StatusCode 200) json resp
 
-        Response (StatusCode code) (MimeType mime) body ->
-            responses <|
-                JE.object
-                    [ ( "id", JE.string id )
-                    , ( "code", JE.int code )
-                    , ( "body", JE.string body )
-                    , ( "mimetype", JE.string mime )
-                    ]
+        Response code mime body ->
+            respond_ id code mime (JE.string body)
+
 
 
 -- model
@@ -163,10 +152,6 @@ type Msg msg
     | RMsg String msg
 
 
-
---gather : Model model msg -> (Model model msg, Cmd (Msg msg))
-
-
 new : Request -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
 new request model =
     let
@@ -190,6 +175,29 @@ new request model =
             ( model, respond request.id resp )
 
 
+forward :
+    String
+    -> msg
+    -> Model model msg
+    -> ( Model model msg, Cmd (Msg msg) )
+forward id msg model =
+    case Dict.get id model.requests of
+        Nothing ->
+            Debug.log
+                ("unknown id: " ++ toString id ++ " msg: " ++ toString msg)
+                ( model, Cmd.none )
+
+        Just m ->
+            let
+                ( m2, cmd ) =
+                    model.spec.update msg m
+
+                model2 =
+                    { model | requests = Dict.insert id m2 model.requests }
+            in
+            ( model2, cmd |> Cmd.map (RMsg id) )
+
+
 update : Msg msg -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
 update msg model =
     case Debug.log "msg" msg of
@@ -202,7 +210,7 @@ update msg model =
                     Debug.crash msg
 
         RMsg id msg ->
-            ( model, Cmd.none )
+            forward id msg model
 
 
 subscriptions : Model model msg -> Sub (Msg msg)
