@@ -67,6 +67,22 @@ http.createServer(function (req, res) {
         id: id,
         method: req.method,
         path: req.url,
+        headers: req.headers,
+        cookies: parseCookies(req)
     };
+    console.log(j);
     app.ports.requests.send(j);
 }).listen(8000);
+
+
+function parseCookies (request) {
+    var list = {},
+        rc = request.headers.cookie;
+
+    rc && rc.split(';').forEach(function( cookie ) {
+        var parts = cookie.split('=');
+        list[parts.shift().trim()] = decodeURI(parts.join('='));
+    });
+
+    return list;
+}

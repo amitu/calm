@@ -59,8 +59,8 @@ type alias Request =
 
     -- , get : MultiDict
     -- , post : MultiDict
-    -- , headers : Dict String String
-    -- , cookies : Dict String Cookie
+    , headers : Dict String String
+    , cookies : Dict String String
     }
 
 
@@ -84,6 +84,8 @@ request =
                                 JD.fail ("invalid method" ++ invalid)
                     )
             )
+        |: JD.field "headers" (JD.dict JD.string)
+        |: JD.field "cookies" (JD.dict JD.string)
 
 
 type Response

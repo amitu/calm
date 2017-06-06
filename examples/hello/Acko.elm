@@ -47,7 +47,9 @@ response model =
     model.now
         |> Maybe.map
             (\x ->
-                Server.HTMLResponse <| "<h1>hello world</h1>" ++ toString x
+                Server.HTMLResponse <|
+                    "<h1>hello world</h1>"
+                        ++ toString model
             )
 
 
