@@ -194,8 +194,18 @@ forward id msg model =
 
                 model2 =
                     { model | requests = Dict.insert id m2 model.requests }
+
+                resp =
+                    model.spec.response m2
             in
-            ( model2, cmd |> Cmd.map (RMsg id) )
+            case resp of
+                Nothing ->
+                    ( model2, cmd |> Cmd.map (RMsg id) )
+
+                Just resp ->
+                    ( { model | requests = Dict.remove id model.requests }
+                    , respond id resp
+                    )
 
 
 update : Msg msg -> Model model msg -> ( Model model msg, Cmd (Msg msg) )

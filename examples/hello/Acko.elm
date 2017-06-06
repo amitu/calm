@@ -2,18 +2,22 @@ module Acko exposing (..)
 
 import Client
 import Server
+import Task
+import Time
 
 
 -- models
 
 
 type alias Model =
-    { request : Server.Request }
+    { request : Server.Request
+    , now : Maybe Time.Time
+    }
 
 
 init : Server.Request -> ( Model, Cmd Msg )
 init request =
-    ( { request = request }, Cmd.none )
+    ( { request = request, now = Nothing }, Time.now |> Task.perform GotTime )
 
 
 
@@ -21,12 +25,12 @@ init request =
 
 
 type Msg
-    = NoOp
+    = GotTime Time.Time
 
 
-update : Msg -> model -> ( model, Cmd msg )
-update msg model =
-    ( model, Cmd.none )
+update : Msg -> Model -> ( Model, Cmd msg )
+update (GotTime time) model =
+    ( { model | now = Just time }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -40,7 +44,11 @@ subscriptions model =
 
 response : Model -> Maybe Server.Response
 response model =
-    Just <| Server.HTMLResponse "<h1>hello world</h1>"
+    model.now
+        |> Maybe.map
+            (\x ->
+                Server.HTMLResponse <| "<h1>hello world</h1>" ++ toString x
+            )
 
 
 main =
