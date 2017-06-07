@@ -17,6 +17,7 @@ port module Server
 
 import Dict exposing (Dict)
 import Html exposing (Html)
+import HtmlToString exposing (htmlToString)
 import Json.Decode as JD
 import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
@@ -134,9 +135,9 @@ request =
         |: JD.field "cookies" (JD.dict JD.string)
 
 
-type Response
+type Response msg
     = TextResponse String
-    | HTMLResponse String
+    | HTMLResponse (Html msg)
     | JSONResponse JE.Value
     | Response StatusCode MimeType String
 
@@ -152,11 +153,11 @@ respond_ id (StatusCode code) (MimeType mime) body =
             ]
 
 
-respond : String -> Response -> Cmd (Msg msg)
+respond : String -> Response msg -> Cmd (Msg msg)
 respond id response =
     case response of
         HTMLResponse resp ->
-            respond_ id (StatusCode 200) html (JE.string resp)
+            respond_ id (StatusCode 200) html (JE.string (htmlToString resp))
 
         TextResponse resp ->
             respond_ id (StatusCode 200) plain (JE.string resp)
@@ -175,7 +176,7 @@ respond id response =
 type alias ServerSpec model msg =
     { init : Request -> ( model, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
-    , response : model -> Maybe Response
+    , response : model -> Maybe (Response msg)
     , subscriptions : model -> Sub msg
     }
 

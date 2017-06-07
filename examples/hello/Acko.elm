@@ -1,6 +1,7 @@
 module Acko exposing (..)
 
 import Client
+import Html exposing (h1, text)
 import Server
 import Task
 import Time
@@ -17,7 +18,9 @@ type alias Model =
 
 init : Server.Request -> ( Model, Cmd Msg )
 init request =
-    ( { request = request, now = Nothing }, Time.now |> Task.perform GotTime )
+    ( { request = request, now = Nothing }
+    , Time.now |> Task.perform GotTime
+    )
 
 
 
@@ -42,15 +45,11 @@ subscriptions model =
 -- response
 
 
-response : Model -> Maybe Server.Response
+response : Model -> Maybe (Server.Response Msg)
 response model =
     model.now
         |> Maybe.map
-            (\x ->
-                Server.HTMLResponse <|
-                    "<h1>hello world</h1>"
-                        ++ toString model
-            )
+            (\x -> Server.HTMLResponse <| h1 [] [ text "hello world" ])
 
 
 main =
