@@ -1,10 +1,26 @@
-port module Server exposing (..)
+port module Server
+    exposing
+        ( Cookie
+        , Method(..)
+        , MimeType(..)
+        , MultiDict
+        , Request
+        , Response(..)
+        , ServerSpec
+        , StatusCode(..)
+        , getParam
+        , html
+        , json
+        , plain
+        , program
+        )
 
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Json.Decode as JD
 import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
+import Navigation
 
 
 -- http utilities
@@ -17,6 +33,23 @@ type Method
     | PUT
     | PATCH
     | HEAD
+
+
+method : JD.Decoder Method
+method =
+    JD.string
+        |> JD.andThen
+            (\v ->
+                case v of
+                    "GET" ->
+                        JD.succeed GET
+
+                    "POST" ->
+                        JD.succeed POST
+
+                    invalid ->
+                        JD.fail ("invalid method" ++ invalid)
+            )
 
 
 type MimeType
@@ -46,6 +79,16 @@ type alias MultiDict =
     Dict String (List String)
 
 
+multidict : JD.Decoder MultiDict
+multidict =
+    JD.dict (JD.list JD.string)
+
+
+getParam : String -> MultiDict -> Maybe String
+getParam key mdict =
+    Nothing
+
+
 type alias Cookie =
     { name : String
     , value : String
@@ -54,36 +97,39 @@ type alias Cookie =
 
 type alias Request =
     { id : String
-    , path : String
+    , location : Navigation.Location
     , method : Method
+    , get : MultiDict
 
-    -- , get : MultiDict
     -- , post : MultiDict
     , headers : Dict String String
     , cookies : Dict String String
     }
 
 
+location : JD.Decoder Navigation.Location
+location =
+    JD.succeed Navigation.Location
+        |: JD.field "href" JD.string
+        |: JD.field "host" JD.string
+        |: JD.field "hostname" JD.string
+        |: JD.field "protocol" JD.string
+        |: JD.field "origin" JD.string
+        |: JD.field "port" JD.string
+        |: JD.field "pathname" JD.string
+        |: JD.field "search" JD.string
+        |: JD.field "hash" JD.string
+        |: JD.field "username" JD.string
+        |: JD.field "password" JD.string
+
+
 request : JD.Decoder Request
 request =
     JD.succeed Request
         |: JD.field "id" JD.string
-        |: JD.field "path" JD.string
-        |: JD.field "method"
-            (JD.string
-                |> JD.andThen
-                    (\v ->
-                        case v of
-                            "GET" ->
-                                JD.succeed GET
-
-                            "POST" ->
-                                JD.succeed POST
-
-                            invalid ->
-                                JD.fail ("invalid method" ++ invalid)
-                    )
-            )
+        |: JD.field "location" location
+        |: JD.field "method" method
+        |: JD.field "get" multidict
         |: JD.field "headers" (JD.dict JD.string)
         |: JD.field "cookies" (JD.dict JD.string)
 

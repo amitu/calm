@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-var fs = require('fs')
-var temp = require('temp').track()
-var compiler = require('node-elm-compiler')
-var http = require('http');
+const fs = require('fs')
+const temp = require('temp').track()
+const compiler = require('node-elm-compiler')
+const http = require('http');
+const url = require('url');
 
 if (!fs.existsSync('./elm-package.json')) {
     fail(
@@ -61,12 +62,53 @@ app.ports.responses.subscribe(function(obj){
 
 http.createServer(function (req, res) {
     idx += 1;
-    id = idx.toString();
+    var id = idx.toString();
     reqs[id] = {req: req, res:res};
-    j = {
+    var myUrl = new url.URL("http://127.0.0.1:8000" + req.url);
+    const GET = {}
+    myUrl.searchParams.forEach(function(value, name) {
+        if (GET[name]) {
+            GET[name].push(value);
+        } else {
+            GET[name] = [value];
+        }
+    });
+    var j = {
         id: id,
+        location: {
+            // Is a DOMString containing the entire URL.
+            href: req.url,
+            // Is a DOMString containing the protocol scheme of the URL,
+            // including the final ':'.
+            protocol: myUrl.protocol,
+            // Is a DOMString containing the host, that is the hostname, a
+            // ':', and the port of the URL.
+            host: myUrl.host,
+            // Is a DOMString containing the domain of the URL.
+            hostname: myUrl.hostname,
+            // Is a DOMString containing the port number of the URL.
+            port: myUrl.port,
+            // Is a DOMString containing an initial '/' followed by the
+            // path of the URL.
+            pathname: myUrl.pathname,
+            // Is a DOMString containing a '?' followed by the parameters
+            // or "querystring" of the URL.
+            search: myUrl.search,
+            // Is a DOMString containing a '#' followed by the fragment
+            // identifier of the URL.
+            hash: myUrl.hash,
+            // Is a DOMString containing the username specified before the
+            // domain name.
+            username: myUrl.username,
+            // Is a DOMString containing the password specified before the
+            // domain name.
+            password: myUrl.password,
+            // Returns a DOMString containing the canonical form of the
+            // origin of the specific location.
+            origin: myUrl.origin
+        },
+        get: GET,
         method: req.method,
-        path: req.url,
         headers: req.headers,
         cookies: parseCookies(req)
     };
