@@ -15,14 +15,15 @@ port module Calm.Server
         , program
         )
 
-import Dict exposing (Dict)
 import Calm.FS as FS
+import Dict exposing (Dict)
 import Html exposing (Html)
 import HtmlToString exposing (htmlToString)
 import Json.Decode as JD
 import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
 import Navigation
+import UrlParser as Url
 
 
 -- http utilities
@@ -296,13 +297,22 @@ type alias ServerSpec model msg =
     }
 
 
+type alias RoutedSpec route model msg =
+    { route : Url.Parser (route -> a) a
+    , init : route -> Request -> Result (Response msg) ( model, Cmd msg )
+    , update : msg -> model -> ( model, Cmd msg )
+    , response : model -> Maybe (Response msg)
+    , subscriptions : model -> Sub msg
+    }
+
+
 type alias Model model msg =
     { requests : Dict String model
     , spec : ServerSpec model msg
     }
 
 
-init : ServerSpec model msg -> ( Model model msg, Cmd (Msg msg) )
+init : spec -> ( Model model route msg, Cmd (Msg msg) )
 init spec =
     ( { requests = Dict.empty, spec = spec }, Cmd.none )
 
@@ -407,6 +417,15 @@ subscriptions model =
 
 program : ServerSpec model msg -> Program Never (Model model msg) (Msg msg)
 program spec =
+    Platform.program
+        { init = init spec
+        , update = update
+        , subscriptions = subscriptions
+        }
+
+
+programWithRoute : RoutedSpec model route msg -> Program Never (Model model msg) (Msg msg)
+programWithRoute spec =
     Platform.program
         { init = init spec
         , update = update

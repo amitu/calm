@@ -1,7 +1,17 @@
 module Client exposing (..)
 
 import Html exposing (Html)
-import UrlParser as Url exposing ((</>), (<?>), Parser, intParam, parseHash, s, string, top)
+import UrlParser as Url
+    exposing
+        ( (</>)
+        , (<?>)
+        , Parser
+        , intParam
+        , parseHash
+        , s
+        , string
+        , top
+        )
 
 
 type Page

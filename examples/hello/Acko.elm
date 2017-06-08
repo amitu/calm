@@ -1,8 +1,8 @@
 module Acko exposing (..)
 
+import Calm.Server as Server
 import Client
 import Html exposing (div, h1, text)
-import Calm.Server as Server
 import Task
 import Time
 import UrlParser as Url
