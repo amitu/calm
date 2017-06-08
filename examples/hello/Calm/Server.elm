@@ -5,12 +5,14 @@ port module Calm.Server
         , MimeType(..)
         , MultiDict
         , Request
-        , Response(..)
+        , Response
         , ServerSpec
         , StatusCode(..)
         , getParam
         , html
+        , htmlResponse
         , json
+        , notFound
         , plain
         , program
         )
@@ -23,6 +25,7 @@ import Json.Decode as JD
 import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
 import Navigation
+import Time
 
 
 -- http utilities
@@ -50,7 +53,7 @@ method =
                         JD.succeed POST
 
                     invalid ->
-                        JD.fail ("invalid method" ++ invalid)
+                        JD.fail ("invalid method: " ++ invalid)
             )
 
 
@@ -94,6 +97,10 @@ getParam key mdict =
 type alias Cookie =
     { name : String
     , value : String
+    , domain : Maybe String
+    , path : Maybe String
+    , expires : Maybe Time.Time
+    , maxAge : Maybe Int
     }
 
 
@@ -141,158 +148,213 @@ type Location
     | AbsoluteLocation String
 
 
-type Response msg
-    = TextResponse String
-    | HTMLResponse (Html msg)
-    | JSONResponse JE.Value
-    | Response StatusCode MimeType (Html msg)
-    | ServeFile StatusCode MimeType FS.FileName
-    | ServerDir FS.DirName FS.RelativeFile
-      -- 201
-    | Created (Html msg)
-      -- MovedPermanently(301): This and all future requests should be
-      -- directed to the given URI.
-    | MovedPermanently Location
-      -- Found (302): This is an example of industry practice contradicting
-      -- the standard. The HTTP/1.0 specification (RFC 1945) required the
-      -- client tox perform a temporary redirect (the original describing
-      -- phrase was "Moved Temporarily"),[20] but popular browsers
-      -- implemented 302 with the functionality of a 303 See Other.
-      -- Therefore, HTTP/1.1 added status codes 303 and 307 to distinguish
-      -- between the two behaviours.[21] However, some Web applications and
-      -- frameworks use the 302 status code as if it were the 303
-    | Found Location
-      -- SeeOther(303): The response to the request can be found under
-      -- another URI using a GET method. When received in response to a
-      -- POST (or PUT/DELETE), the client should presume that the server
-      -- has received the data and should issue a redirect with a separate
-      -- GET message.
-    | SeeOther Location
-      -- NotModified(304): Indicates that the resource has not been
-      -- modified since the version specified by the request headers
-      -- If-Modified-Since or If-None-Match. In such case, there is no need
-      -- to retransmit the resource since the client still has a
-      -- previously-downloaded copy.
-    | NotModified
-      -- TemporaryRedirect(307): In this case, the request should be
-      -- repeated with another URI; however, future requests should still
-      -- use the original URI. In contrast to how 302 was historically
-      -- implemented, the request method is not allowed to be changed when
-      -- reissuing the original request. For example, a POST request should
-      -- be repeated using another POST request.
-    | TemporaryRedirect Location
-      -- PermanentRedirect(308): The request and all future requests should
-      -- be repeated using another URI. 307 and 308 parallel the behaviors
-      -- of 302 and 301, but do not allow the HTTP method to change. So,
-      -- for example, submitting a form to a permanently redirected
-      -- resource may continue smoothly.
-    | PermanentRedirect Location
-      -- 400, say json was malformed for API
-    | BadRequest (Html msg)
-      -- 401, say you are not logged in, and ask for a protected resource
-    | Unauthorized (Html msg)
-      -- 403 say you are logged in, but do not have access to this resource
-    | Forbidden (Html msg)
-      -- 404
-    | NotFound (Html msg)
-      -- 405
-    | MethodNotAllowed (List Method) (Html msg)
-      -- 500
-    | InternalServerError (Html msg)
-      -- 503, site is overloaded
-    | ServiceUnavailable (Html msg)
+type Response
+    = Response
+        { code : StatusCode
+        , mime : MimeType
+        , body : JE.Value
+        , cmd : Command
+        , headers : MultiDict
+        , cookies : Dict String Cookie
+        }
 
 
-respond_ : String -> StatusCode -> MimeType -> JE.Value -> Cmd (Msg msg)
-respond_ id (StatusCode code) (MimeType mime) body =
+respond : String -> Response -> Cmd (Msg msg)
+respond id (Response { code, mime, body, cmd, headers, cookies }) =
     responses <|
         JE.object
             [ ( "id", JE.string id )
-            , ( "code", JE.int code )
+            , ( "code", code |> (\(StatusCode c) -> c) |> JE.int )
+            , ( "mime", mime |> (\(MimeType m) -> m) |> JE.string )
+            , ( "cmd", cmd |> (\(Command m) -> m) |> JE.string )
             , ( "body", body )
-            , ( "mimetype", JE.string mime )
+            , ( "headers"
+              , headers
+                    |> Dict.toList
+                    |> List.map
+                        (\( k, v ) -> ( k, JE.list (List.map JE.string v) ))
+                    |> JE.object
+              )
+
+            -- TODO: cookies
             ]
 
-respond__ : String -> Int -> Html msg -> Cmd (Msg msg)
-respond__ id code body =
-    respond_ id (StatusCode code) html (JE.string (htmlToString body))
+
+type Command
+    = Command String
 
 
-respond : String -> Response msg -> Cmd (Msg msg)
-respond id response =
-    case response of
-        HTMLResponse resp ->
-            respond_ id
-                (StatusCode 200)
-                html
-                (JE.string (htmlToString resp))
+serve : Command
+serve =
+    Command "serve"
 
-        TextResponse resp ->
-            respond_ id (StatusCode 200) plain (JE.string resp)
 
-        JSONResponse resp ->
-            respond_ id (StatusCode 200) json resp
+notFound : Html msg -> Response
+notFound body =
+    Response
+        { code = StatusCode 404
+        , mime = html
+        , cmd = serve
+        , body = JE.string (htmlToString body)
+        , headers = Dict.empty
+        , cookies = Dict.empty
+        }
 
-        Response code mime body ->
-            respond_ id code mime (JE.string (htmlToString body))
 
-        NotFound resp ->
-            respond__ id 404 resp
-
-        ServeFile code mime file ->
-            Debug.crash "not implemented"
-
-        ServerDir dir file ->
-            Debug.crash "not implemented"
-
-        Created resp ->
-            respond__ id 201 resp
-
-        MovedPermanently location ->
-            Debug.crash "not implemented"
-
-        Found location ->
-            Debug.crash "not implemented"
-
-        SeeOther location ->
-            Debug.crash "not implemented"
-
-        NotModified ->
-            Debug.crash "not implemented"
-
-        TemporaryRedirect location ->
-            Debug.crash "not implemented"
-
-        PermanentRedirect location ->
-            Debug.crash "not implemented"
-
-        BadRequest body ->
-            respond__ id 400 body
-
-        Unauthorized body ->
-            respond__ id 401 body
-
-        Forbidden body ->
-            respond__ id 403 body
-
-        MethodNotAllowed methods body ->
-            Debug.crash "not implemented"
-
-        InternalServerError body ->
-            respond__ id 500 body
-
-        ServiceUnavailable body ->
-            respond__ id 503 body
+htmlResponse : Html msg -> Response
+htmlResponse body =
+    Response
+        { code = StatusCode 404
+        , mime = html
+        , cmd = serve
+        , body = JE.string (htmlToString body)
+        , headers = Dict.empty
+        , cookies = Dict.empty
+        }
 
 
 
+--type Response msg
+--    = TextResponse String
+--    | HTMLResponse (Html msg)
+--    | JSONResponse JE.Value
+--    | Response StatusCode MimeType (Html msg)
+--    | ServeFile StatusCode MimeType FS.FileName
+--    | ServeDir FS.DirName FS.RelativeFile
+--      -- 201
+--    | Created (Html msg)
+--      -- MovedPermanently(301): This and all future requests should be
+--      -- directed to the given URI.
+--    | MovedPermanently Location
+--      -- Found (302): This is an example of industry practice contradicting
+--      -- the standard. The HTTP/1.0 specification (RFC 1945) required the
+--      -- client tox perform a temporary redirect (the original describing
+--      -- phrase was "Moved Temporarily"),[20] but popular browsers
+--      -- implemented 302 with the functionality of a 303 See Other.
+--      -- Therefore, HTTP/1.1 added status codes 303 and 307 to distinguish
+--      -- between the two behaviours.[21] However, some Web applications and
+--      -- frameworks use the 302 status code as if it were the 303
+--    | Found Location
+--      -- SeeOther(303): The response to the request can be found under
+--      -- another URI using a GET method. When received in response to a
+--      -- POST (or PUT/DELETE), the client should presume that the server
+--      -- has received the data and should issue a redirect with a separate
+--      -- GET message.
+--    | SeeOther Location
+--      -- NotModified(304): Indicates that the resource has not been
+--      -- modified since the version specified by the request headers
+--      -- If-Modified-Since or If-None-Match. In such case, there is no need
+--      -- to retransmit the resource since the client still has a
+--      -- previously-downloaded copy.
+--    | NotModified
+--      -- TemporaryRedirect(307): In this case, the request should be
+--      -- repeated with another URI; however, future requests should still
+--      -- use the original URI. In contrast to how 302 was historically
+--      -- implemented, the request method is not allowed to be changed when
+--      -- reissuing the original request. For example, a POST request should
+--      -- be repeated using another POST request.
+--    | TemporaryRedirect Location
+--      -- PermanentRedirect(308): The request and all future requests should
+--      -- be repeated using another URI. 307 and 308 parallel the behaviors
+--      -- of 302 and 301, but do not allow the HTTP method to change. So,
+--      -- for example, submitting a form to a permanently redirected
+--      -- resource may continue smoothly.
+--    | PermanentRedirect Location
+--      -- 400, say json was malformed for API
+--    | BadRequest (Html msg)
+--      -- 401, say you are not logged in, and ask for a protected resource
+--    | Unauthorized (Html msg)
+--      -- 403 say you are logged in, but do not have access to this resource
+--    | Forbidden (Html msg)
+--      -- 404
+--    | NotFound (Html msg)
+--      -- 405
+--    | MethodNotAllowed (List Method) (Html msg)
+--      -- 500
+--    | InternalServerError (Html msg)
+--      -- 503, site is overloaded
+--    | ServiceUnavailable (Html msg)
+--
+--
+--
+--
+--respond__ : String -> Int -> Html msg -> Cmd (Msg msg)
+--respond__ id code body =
+--    respond_ id (StatusCode code) html (JE.string (htmlToString body))
+--
+--
+--respond : String -> Response msg -> Cmd (Msg msg)
+--respond id response =
+--    case response of
+--        HTMLResponse resp ->
+--            respond_ id
+--                (StatusCode 200)
+--                html
+--                (JE.string (htmlToString resp))
+--
+--        TextResponse resp ->
+--            respond_ id (StatusCode 200) plain (JE.string resp)
+--
+--        JSONResponse resp ->
+--            respond_ id (StatusCode 200) json resp
+--
+--        Response code mime body ->
+--            respond_ id code mime (JE.string (htmlToString body))
+--
+--        NotFound resp ->
+--            respond__ id 404 resp
+--
+--        ServeFile code mime file ->
+--            Debug.crash "not implemented"
+--
+--        ServeDir dir file ->
+--            Debug.crash "not implemented"
+--
+--        Created resp ->
+--            respond__ id 201 resp
+--
+--        MovedPermanently location ->
+--            Debug.crash "not implemented"
+--
+--        Found location ->
+--            Debug.crash "not implemented"
+--
+--        SeeOther location ->
+--            Debug.crash "not implemented"
+--
+--        NotModified ->
+--            Debug.crash "not implemented"
+--
+--        TemporaryRedirect location ->
+--            Debug.crash "not implemented"
+--
+--        PermanentRedirect location ->
+--            Debug.crash "not implemented"
+--
+--        BadRequest body ->
+--            respond__ id 400 body
+--
+--        Unauthorized body ->
+--            respond__ id 401 body
+--
+--        Forbidden body ->
+--            respond__ id 403 body
+--
+--        MethodNotAllowed methods body ->
+--            Debug.crash "not implemented"
+--
+--        InternalServerError body ->
+--            respond__ id 500 body
+--
+--        ServiceUnavailable body ->
+--            respond__ id 503 body
 -- model
 
 
 type alias ServerSpec model msg =
-    { init : Request -> Result (Response msg) ( model, Cmd msg )
+    { init : Request -> Result Response ( model, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
-    , response : model -> Maybe (Response msg)
+    , response : model -> Maybe Response
     , subscriptions : model -> Sub msg
     }
 

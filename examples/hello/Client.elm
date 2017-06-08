@@ -35,7 +35,7 @@ type Route
 route : Parser (Route -> a) a
 route =
     Url.oneOf
-        [ Url.map ((Maybe.map Page) >> BlogList) (top <?> intParam "page")
+        [ Url.map (Maybe.map Page >> BlogList) (top <?> intParam "page")
         , Url.map (PostId >> PostPage) (s "post" </> string)
         , Url.map (Category >> CategoryPage) (s "category" </> string)
         ]

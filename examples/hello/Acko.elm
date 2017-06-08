@@ -18,7 +18,7 @@ type alias Model =
     }
 
 
-init : Server.Request -> Result (Server.Response Msg) ( Model, Cmd Msg )
+init : Server.Request -> Result Server.Response ( Model, Cmd Msg )
 init request =
     let
         route =
@@ -38,7 +38,7 @@ init request =
             Err
                 (Client.http404
                     |> Html.map ClientMsg
-                    |> Server.NotFound
+                    |> Server.notFound
                 )
 
 
@@ -70,12 +70,12 @@ subscriptions model =
 -- response
 
 
-response : Model -> Maybe (Server.Response Msg)
+response : Model -> Maybe Server.Response
 response model =
     model.now
         |> Maybe.map
             (\_ ->
-                Server.HTMLResponse <|
+                Server.htmlResponse <|
                     div []
                         [ h1 [] [ text "hello world" ]
                         , text (toString model)
