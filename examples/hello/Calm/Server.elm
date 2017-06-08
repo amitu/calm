@@ -15,8 +15,8 @@ port module Calm.Server
         , program
         )
 
-import Dict exposing (Dict)
 import Calm.FS as FS
+import Dict exposing (Dict)
 import Html exposing (Html)
 import HtmlToString exposing (htmlToString)
 import Json.Decode as JD
@@ -149,13 +149,13 @@ type Response msg
     | ServeFile StatusCode MimeType FS.FileName
     | ServerDir FS.DirName FS.RelativeFile
       -- 201
-    | Created (Html Msg)
+    | Created (Html msg)
       -- MovedPermanently(301): This and all future requests should be
       -- directed to the given URI.
     | MovedPermanently Location
       -- Found (302): This is an example of industry practice contradicting
       -- the standard. The HTTP/1.0 specification (RFC 1945) required the
-      -- client to perform a temporary redirect (the original describing
+      -- client tox perform a temporary redirect (the original describing
       -- phrase was "Moved Temporarily"),[20] but popular browsers
       -- implemented 302 with the functionality of a 303 See Other.
       -- Therefore, HTTP/1.1 added status codes 303 and 307 to distinguish
@@ -213,6 +213,10 @@ respond_ id (StatusCode code) (MimeType mime) body =
             , ( "mimetype", JE.string mime )
             ]
 
+respond__ : String -> Int -> Html msg -> Cmd (Msg msg)
+respond__ id code body =
+    respond_ id (StatusCode code) html (JE.string (htmlToString body))
+
 
 respond : String -> Response msg -> Cmd (Msg msg)
 respond id response =
@@ -233,10 +237,7 @@ respond id response =
             respond_ id code mime (JE.string (htmlToString body))
 
         NotFound resp ->
-            respond_ id
-                (StatusCode 404)
-                html
-                (JE.string (htmlToString resp))
+            respond__ id 404 resp
 
         ServeFile code mime file ->
             Debug.crash "not implemented"
@@ -245,7 +246,7 @@ respond id response =
             Debug.crash "not implemented"
 
         Created resp ->
-            Debug.crash "not implemented"
+            respond__ id 201 resp
 
         MovedPermanently location ->
             Debug.crash "not implemented"
@@ -266,22 +267,22 @@ respond id response =
             Debug.crash "not implemented"
 
         BadRequest body ->
-            Debug.crash "not implemented"
+            respond__ id 400 body
 
         Unauthorized body ->
-            Debug.crash "not implemented"
+            respond__ id 401 body
 
         Forbidden body ->
-            Debug.crash "not implemented"
+            respond__ id 403 body
 
         MethodNotAllowed methods body ->
             Debug.crash "not implemented"
 
         InternalServerError body ->
-            Debug.crash "not implemented"
+            respond__ id 500 body
 
         ServiceUnavailable body ->
-            Debug.crash "not implemented"
+            respond__ id 503 body
 
 
 
