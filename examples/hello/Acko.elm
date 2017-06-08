@@ -2,7 +2,7 @@ module Acko exposing (..)
 
 import Client
 import Html exposing (div, h1, text)
-import Server
+import Calm.Server as Server
 import Task
 import Time
 import UrlParser as Url
@@ -38,7 +38,7 @@ init request =
             Err
                 (Client.http404
                     |> Html.map ClientMsg
-                    |> Server.PageNotFound
+                    |> Server.NotFound
                 )
 
 
