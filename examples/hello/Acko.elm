@@ -1,10 +1,11 @@
 module Acko exposing (..)
 
 import Client
-import Html exposing (h1, text)
+import Html exposing (div, h1, text)
 import Server
 import Task
 import Time
+import UrlParser as Url
 
 
 -- models
@@ -13,14 +14,32 @@ import Time
 type alias Model =
     { request : Server.Request
     , now : Maybe Time.Time
+    , route : Client.Route
     }
 
 
-init : Server.Request -> ( Model, Cmd Msg )
+init : Server.Request -> Result (Server.Response Msg) ( Model, Cmd Msg )
 init request =
-    ( { request = request, now = Nothing }
-    , Time.now |> Task.perform GotTime
-    )
+    let
+        route =
+            Url.parsePath Client.route request.location
+    in
+    case route of
+        Just r ->
+            Ok
+                ( { request = request
+                  , now = Nothing
+                  , route = r
+                  }
+                , Time.now |> Task.perform GotTime
+                )
+
+        Nothing ->
+            Err
+                (Client.http404
+                    |> Html.map ClientMsg
+                    |> Server.PageNotFound
+                )
 
 
 
@@ -29,11 +48,17 @@ init request =
 
 type Msg
     = GotTime Time.Time
+    | ClientMsg Client.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd msg )
-update (GotTime time) model =
-    ( { model | now = Just time }, Cmd.none )
+update msg model =
+    case msg of
+        GotTime time ->
+            ( { model | now = Just time }, Cmd.none )
+
+        ClientMsg imsg ->
+            ( model, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -49,7 +74,13 @@ response : Model -> Maybe (Server.Response Msg)
 response model =
     model.now
         |> Maybe.map
-            (\x -> Server.HTMLResponse <| h1 [] [ text "hello world" ])
+            (\_ ->
+                Server.HTMLResponse <|
+                    div []
+                        [ h1 [] [ text "hello world" ]
+                        , text (toString model)
+                        ]
+            )
 
 
 main =

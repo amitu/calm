@@ -140,6 +140,7 @@ type Response msg
     | HTMLResponse (Html msg)
     | JSONResponse JE.Value
     | Response StatusCode MimeType String
+    | PageNotFound (Html msg)
 
 
 respond_ : String -> StatusCode -> MimeType -> JE.Value -> Cmd (Msg msg)
@@ -157,7 +158,10 @@ respond : String -> Response msg -> Cmd (Msg msg)
 respond id response =
     case response of
         HTMLResponse resp ->
-            respond_ id (StatusCode 200) html (JE.string (htmlToString resp))
+            respond_ id
+                (StatusCode 200)
+                html
+                (JE.string (htmlToString resp))
 
         TextResponse resp ->
             respond_ id (StatusCode 200) plain (JE.string resp)
@@ -168,13 +172,19 @@ respond id response =
         Response code mime body ->
             respond_ id code mime (JE.string body)
 
+        PageNotFound resp ->
+            respond_ id
+                (StatusCode 404)
+                html
+                (JE.string (htmlToString resp))
+
 
 
 -- model
 
 
 type alias ServerSpec model msg =
-    { init : Request -> ( model, Cmd msg )
+    { init : Request -> Result (Response msg) ( model, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
     , response : model -> Maybe (Response msg)
     , subscriptions : model -> Sub msg
@@ -203,24 +213,26 @@ type Msg msg
 
 new : Request -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
 new request model =
-    let
-        ( m, cmd ) =
-            model.spec.init request
+    case model.spec.init request of
+        Ok ( m, cmd ) ->
+            let
+                resp =
+                    model.spec.response m
 
-        resp =
-            model.spec.response m
+                requests =
+                    model.requests
+                        |> Dict.insert request.id m
+            in
+            case resp of
+                Nothing ->
+                    ( { model | requests = requests }
+                    , cmd |> Cmd.map (RMsg request.id)
+                    )
 
-        requests =
-            model.requests
-                |> Dict.insert request.id m
-    in
-    case resp of
-        Nothing ->
-            ( { model | requests = requests }
-            , cmd |> Cmd.map (RMsg request.id)
-            )
+                Just resp ->
+                    ( model, respond request.id resp )
 
-        Just resp ->
+        Err resp ->
             ( model, respond request.id resp )
 
 
