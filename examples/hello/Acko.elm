@@ -83,6 +83,7 @@ response model =
             )
 
 
+main : Program Never (Server.Model Model Msg) (Server.Msg Msg)
 main =
     Server.program
         { init = init

@@ -3,6 +3,8 @@ port module Calm.Server
         ( Cookie
         , Method(..)
         , MimeType(..)
+        , Model
+        , Msg
         , MultiDict
         , Request
         , Response
@@ -17,8 +19,8 @@ port module Calm.Server
         , program
         )
 
-import Calm.FS as FS
 import Dict exposing (Dict)
+import Formatting as F exposing ((<>), premap)
 import Html exposing (Html)
 import HtmlToString exposing (htmlToString)
 import Json.Decode as JD
@@ -94,14 +96,47 @@ getParam key mdict =
     Nothing
 
 
+type Expiry =
+    NotSpecified
+    | MaxAge Int
+    | Expires Time.Time
+
 type alias Cookie =
     { name : String
     , value : String
     , domain : Maybe String
     , path : Maybe String
-    , expires : Maybe Time.Time
-    , maxAge : Maybe Int
+    , expiry : Expiry
     }
+
+
+mformat : (a -> String) -> F.Format r (Maybe a -> r)
+mformat fn =
+    premap
+        (Maybe.map fn
+            >> Maybe.withDefault ""
+        )
+        F.string
+
+
+formatCookie : Cookie -> String
+formatCookie { name, value, domain, path, expiry } =
+    -- lu=Rg3vHJZnehYLjVg7qi3bZjzg; Expires=Tue, 15 Jan 2013 21:47:38 GMT;
+    -- Path=/; Domain=.example.com; HttpOnly
+    let
+        format =
+            F.string
+                <> F.s "="
+                <> F.string
+                <> mformat (\d -> "; Domain=" ++ d)
+                <> mformat (\d -> "; Path=" ++ d)
+    in
+    F.print format name value domain path
+
+
+cookie : String -> String -> Cookie
+cookie name value =
+    Cookie name value Nothing Nothing NotSpecified
 
 
 type alias Request =
@@ -175,8 +210,12 @@ respond id (Response { code, mime, body, cmd, headers, cookies }) =
                         (\( k, v ) -> ( k, JE.list (List.map JE.string v) ))
                     |> JE.object
               )
-
-            -- TODO: cookies
+            , ( "cookies"
+              , cookies
+                    |> Dict.values
+                    |> List.map (formatCookie >> JE.string)
+                    |> JE.list
+              )
             ]
 
 
@@ -209,7 +248,18 @@ htmlResponse body =
         , cmd = serve
         , body = JE.string (htmlToString body)
         , headers = Dict.empty
-        , cookies = Dict.empty
+        , cookies =
+            Dict.fromList
+                [ ( "foo"
+                  , cookie "foo" "bar"
+                        |> (\c ->
+                                { c
+                                    | domain = Just "domain.com"
+                                    , path = Just "/asd/"
+                                }
+                           )
+                  )
+                ]
         }
 
 

@@ -48,13 +48,14 @@ idx = 0;
 
 
 app.ports.responses.subscribe(function(obj){
-    res = reqs[obj.id];
+    console.log("fromElm: ", obj)
+    var res = reqs[obj.id];
     if (!res) {
         console.log("Invalid ID", obj.id);
         return
     }
     res = res.res;
-    res.writeHead(200, {'Content-Type': obj.mimetype});
+    res.writeHead(200, {'Content-Type': obj.mime});
     res.write(obj.body);
     res.end();
 });
@@ -112,7 +113,7 @@ http.createServer(function (req, res) {
         headers: req.headers,
         cookies: parseCookies(req)
     };
-    console.log(j);
+    console.log("toElm: ", j);
     app.ports.requests.send(j);
 }).listen(8000);
 
