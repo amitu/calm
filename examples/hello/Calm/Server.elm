@@ -23,6 +23,7 @@ import Dict exposing (Dict)
 import Formatting as F exposing ((<>), premap)
 import Html exposing (Html)
 import HtmlToString exposing (htmlToString)
+import Http
 import Json.Decode as JD
 import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
@@ -96,10 +97,11 @@ getParam key mdict =
     Nothing
 
 
-type Expiry =
-    NotSpecified
+type Expiry
+    = NotSpecified
     | MaxAge Int
     | Expires Time.Time
+
 
 type alias Cookie =
     { name : String
@@ -107,6 +109,8 @@ type alias Cookie =
     , domain : Maybe String
     , path : Maybe String
     , expiry : Expiry
+    , secure : Bool
+    , httpOnly : Bool
     }
 
 
@@ -119,24 +123,36 @@ mformat fn =
         F.string
 
 
+bformat : String -> F.Format r (Bool -> r)
+bformat val =
+    premap
+        (\b ->
+            if b then
+                val
+            else
+                ""
+        )
+        F.string
+
+
 formatCookie : Cookie -> String
-formatCookie { name, value, domain, path, expiry } =
-    -- lu=Rg3vHJZnehYLjVg7qi3bZjzg; Expires=Tue, 15 Jan 2013 21:47:38 GMT;
-    -- Path=/; Domain=.example.com; HttpOnly
+formatCookie { name, value, domain, path, expiry, secure, httpOnly } =
     let
         format =
-            F.string
+            F.uriFragment
                 <> F.s "="
-                <> F.string
-                <> mformat (\d -> "; Domain=" ++ d)
+                <> F.uriFragment
+                <> mformat (\d -> "; Domain=" ++ Http.encodeUri d)
                 <> mformat (\d -> "; Path=" ++ d)
+                <> bformat "; Secure"
+                <> bformat "; HttpOnly"
     in
-    F.print format name value domain path
+    F.print format name value domain path secure httpOnly
 
 
 cookie : String -> String -> Cookie
 cookie name value =
-    Cookie name value Nothing Nothing NotSpecified
+    Cookie name value Nothing Nothing NotSpecified False False
 
 
 type alias Request =
@@ -144,8 +160,6 @@ type alias Request =
     , location : Navigation.Location
     , method : Method
     , get : MultiDict
-
-    -- , post : MultiDict
     , headers : Dict String String
     , cookies : Dict String String
     }
@@ -228,6 +242,16 @@ serve =
     Command "serve"
 
 
+serveFile : Command
+serveFile =
+    Command "serve-file"
+
+
+serveDir : Command
+serveDir =
+    Command "serve-dir"
+
+
 notFound : Html msg -> Response
 notFound body =
     Response
@@ -248,18 +272,7 @@ htmlResponse body =
         , cmd = serve
         , body = JE.string (htmlToString body)
         , headers = Dict.empty
-        , cookies =
-            Dict.fromList
-                [ ( "foo"
-                  , cookie "foo" "bar"
-                        |> (\c ->
-                                { c
-                                    | domain = Just "domain.com"
-                                    , path = Just "/asd/"
-                                }
-                           )
-                  )
-                ]
+        , cookies = Dict.empty
         }
 
 
