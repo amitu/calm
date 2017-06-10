@@ -54,21 +54,25 @@ global.jsrefs = (function() {
 
 var target = temp.path({ suffix: '.js' });
 compiler.compileSync([source], {
-  yes: true,
-  output: target,
-  processOpts: { stdio: 'pipe' }
+    yes: true,
+    output: target,
+    processOpts: { stdio: 'pipe' }
 });
+
 
 var Elm = require(target);
 var app = Elm.Main.worker();
 
+
 function fail (msg) {
-  process.stderr.write(msg + "\n");
-  process.exit(1);
+    process.stderr.write(msg + "\n");
+    process.exit(1);
 }
 
+
 reqs = {};
-idx = 0;
+idx = -1;
+
 
 function attrs(tree, w) {
     var facts = tree.facts;
@@ -96,6 +100,7 @@ function attrs(tree, w) {
     }
 }
 
+
 function htmlify(tree, w) {
     switch (tree["type"]) {
     case "node":
@@ -117,6 +122,7 @@ function htmlify(tree, w) {
         w(JSON.stringify(tree));
     }
 }
+
 
 app.ports.responses.subscribe(function(obj){
     console.log("fromElm: ", obj);
