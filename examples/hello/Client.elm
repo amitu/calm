@@ -1,7 +1,7 @@
 module Client exposing (..)
 
 import Html exposing (Html)
-import Html.Attributes exposing (class)
+import Html.Attributes exposing (class, href, id, style)
 import UrlParser as Url
     exposing
         ( (</>)
@@ -48,7 +48,13 @@ type Msg
 
 http404 : Html Msg
 http404 =
-    Html.h1 [class "foo-class"] [ Html.text "page not found" ]
+    Html.h1
+        [ id "someid"
+        , href "#foo"
+        , class "foo-class"
+        , style [ ( "color", "red" ) ]
+        ]
+        [ Html.text "page not found" ]
 
 
 main : Html msg

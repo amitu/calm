@@ -452,21 +452,13 @@ new request model =
     case model.spec.init request of
         Ok ( m, cmd ) ->
             let
-                resp =
-                    model.spec.response m
-
                 requests =
                     model.requests
                         |> Dict.insert request.id m
             in
-            case resp of
-                Nothing ->
-                    ( { model | requests = requests }
-                    , cmd |> Cmd.map (RMsg request.id)
-                    )
-
-                Just resp ->
-                    ( model, respond request.id resp )
+            ( { model | requests = requests }
+            , cmd |> Cmd.map (RMsg request.id)
+            )
 
         Err resp ->
             ( model, respond request.id resp )
@@ -507,7 +499,7 @@ forward id msg model =
 
 update : Msg msg -> Model model msg -> ( Model model msg, Cmd (Msg msg) )
 update msg model =
-    case Debug.log "msg" msg of
+    case msg of
         NewRequest val ->
             case JD.decodeValue request val of
                 Ok request ->

@@ -60,7 +60,7 @@ compiler.compileSync([source], {
 });
 
 var Elm = require(target);
-var app = Elm.Acko.worker();
+var app = Elm.Main.worker();
 
 function fail (msg) {
   process.stderr.write(msg + "\n")
@@ -70,18 +70,65 @@ function fail (msg) {
 reqs = {};
 idx = 0;
 
+function attributes(facts, write) {
+    for (var key in facts) {
+        if (facts.hasOwnProperty(key)) {
+            var value = facts[key];
+            switch (key) {
+                case "className":
+                    write(" class=\""); write(value); write("\"");
+                    break;
+                case "STYLE":
+                    write(" style=\"");
+                    for (var k in value) {
+                        if (facts.hasOwnProperty(key)) {
+                            var v = value[k];
+                            write(k); write(": "); write(v); write(";")
+                        }
+                    }
+                    write("\"");
+                    break;
+                default:
+                    write(" "); write(key); write("="); write(value);
+            }
+        }
+    }
+}
+
+function htmlify(tree, write) {
+    switch (tree["type"]) {
+    case "node":
+        write("<"); write(tree["tag"]); attributes(tree.facts, write); write(">");
+        var len = tree.children.length;
+        for (var i = 0; i < len; i++) {
+            htmlify(tree.children[i], write);
+        }
+        write("</"); write(tree["tag"]); write(">");
+        break;
+    case "text":
+        write(tree["text"]);
+        break;
+    case "tagger":
+        htmlify(tree["node"], write);
+        break;
+    default:
+        console.log("invalid type: " + tree["type"]);
+        write(JSON.stringify(tree));
+    }
+}
 
 app.ports.responses.subscribe(function(obj){
-    console.log("fromElm: ", obj)
+    console.log("fromElm: ", obj);
     var res = reqs[obj.id];
     if (!res) {
         console.log("Invalid ID", obj.id);
-        return
+        return;
     }
     res = res.res;
-    res.writeHead(200, {'Content-Type': obj.mime});
-    res.write(JSON.stringify(global.jsrefs.extract(obj.body)));
+    res.writeHead(obj.code, {'Content-Type': obj.mime});
+    htmlify(jsrefs.extract(obj.body), function(m){res.write(m)});
     res.end();
+    delete reqs[obj.id];
 });
 
 
