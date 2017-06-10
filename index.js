@@ -70,50 +70,51 @@ function fail (msg) {
 reqs = {};
 idx = 0;
 
-function attributes(facts, write) {
+function attrs(tree, w) {
+    var facts = tree.facts;
     for (var key in facts) {
         if (facts.hasOwnProperty(key)) {
             var value = facts[key];
             switch (key) {
                 case "className":
-                    write(" class=\""); write(value); write("\"");
+                    w(" class=\""); w(value); w("\"");
                     break;
                 case "STYLE":
-                    write(" style=\"");
+                    w(" style=\"");
                     for (var k in value) {
                         if (facts.hasOwnProperty(key)) {
                             var v = value[k];
-                            write(k); write(": "); write(v); write(";")
+                            w(k); w(": "); w(v); w(";")
                         }
                     }
-                    write("\"");
+                    w("\"");
                     break;
                 default:
-                    write(" "); write(key); write("="); write(value);
+                    w(" "); w(key); w("="); w("\""); w(value); w("\"");
             }
         }
     }
 }
 
-function htmlify(tree, write) {
+function htmlify(tree, w) {
     switch (tree["type"]) {
     case "node":
-        write("<"); write(tree["tag"]); attributes(tree.facts, write); write(">");
+        w("<"); w(tree["tag"]); attrs(tree, w); w(">");
         var len = tree.children.length;
         for (var i = 0; i < len; i++) {
-            htmlify(tree.children[i], write);
+            htmlify(tree.children[i], w);
         }
-        write("</"); write(tree["tag"]); write(">");
+        w("</"); w(tree["tag"]); w(">");
         break;
     case "text":
-        write(tree["text"]);
+        w(tree["text"]);
         break;
     case "tagger":
-        htmlify(tree["node"], write);
+        htmlify(tree["node"], w);
         break;
     default:
         console.log("invalid type: " + tree["type"]);
-        write(JSON.stringify(tree));
+        w(JSON.stringify(tree));
     }
 }
 

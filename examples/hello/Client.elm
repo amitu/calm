@@ -54,7 +54,9 @@ http404 =
         , class "foo-class"
         , style [ ( "color", "red" ) ]
         ]
-        [ Html.text "page not found" ]
+        [ Html.text "page not found "
+        , Html.small [] [ Html.text "small" ]
+        ]
 
 
 main : Html msg
