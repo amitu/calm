@@ -22,11 +22,11 @@ port module Calm.Server
 import Dict exposing (Dict)
 import Formatting as F exposing ((<>), premap)
 import Html exposing (Html)
-import HtmlToString exposing (htmlToString)
 import Http
 import Json.Decode as JD
 import Json.Decode.Extra as JD exposing ((|:))
 import Json.Encode as JE
+import Native.Helpers
 import Navigation
 import Time
 
@@ -258,7 +258,7 @@ notFound body =
         { code = StatusCode 404
         , mime = html
         , cmd = serve
-        , body = JE.string (htmlToString body)
+        , body = JE.string <| Native.Helpers.stringify body
         , headers = Dict.empty
         , cookies = Dict.empty
         }
@@ -270,7 +270,7 @@ htmlResponse body =
         { code = StatusCode 404
         , mime = html
         , cmd = serve
-        , body = JE.string (htmlToString body)
+        , body = JE.string <| Native.Helpers.stringify body
         , headers = Dict.empty
         , cookies = Dict.empty
         }
