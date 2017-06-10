@@ -27,6 +27,30 @@ if (!fs.existsSync(source)) {
     )
 }
 
+global.jsrefs = (function() {
+    var objects = {};
+    var counter = -1;
+
+    var insert = function (obj) {
+        counter += 1;
+        var scounter = counter.toString();
+        objects[scounter] = obj;
+        return scounter;
+    };
+
+    var extract = function (idx) {
+        // idx assumed string
+        var obj = objects[idx];
+        delete objects[idx];
+        return obj;
+    };
+
+    return {
+        insert: insert,
+        extract: extract
+    }
+})();
+
 
 var target = temp.path({ suffix: '.js' });
 compiler.compileSync([source], {
@@ -56,7 +80,7 @@ app.ports.responses.subscribe(function(obj){
     }
     res = res.res;
     res.writeHead(200, {'Content-Type': obj.mime});
-    res.write(obj.body);
+    res.write(JSON.stringify(global.jsrefs.extract(obj.body)));
     res.end();
 });
 

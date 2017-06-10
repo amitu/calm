@@ -18,7 +18,7 @@ type alias Model =
     }
 
 
-init : Server.Request -> Result Server.Response ( Model, Cmd Msg )
+init : Server.Request -> Result (Server.Response Msg) ( Model, Cmd Msg )
 init request =
     let
         route =
@@ -70,7 +70,7 @@ subscriptions model =
 -- response
 
 
-response : Model -> Maybe Server.Response
+response : Model -> Maybe (Server.Response Msg)
 response model =
     model.now
         |> Maybe.map

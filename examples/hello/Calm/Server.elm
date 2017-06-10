@@ -197,18 +197,23 @@ type Location
     | AbsoluteLocation String
 
 
-type Response
+insert : Html msg -> JE.Value
+insert =
+    Native.Helpers.insert >> JE.int
+
+
+type Response msg
     = Response
         { code : StatusCode
         , mime : MimeType
-        , body : JE.Value
+        , body : Html msg
         , cmd : Command
         , headers : MultiDict
         , cookies : Dict String Cookie
         }
 
 
-respond : String -> Response -> Cmd (Msg msg)
+respond : String -> Response msg -> Cmd (Msg msg)
 respond id (Response { code, mime, body, cmd, headers, cookies }) =
     responses <|
         JE.object
@@ -216,7 +221,7 @@ respond id (Response { code, mime, body, cmd, headers, cookies }) =
             , ( "code", code |> (\(StatusCode c) -> c) |> JE.int )
             , ( "mime", mime |> (\(MimeType m) -> m) |> JE.string )
             , ( "cmd", cmd |> (\(Command m) -> m) |> JE.string )
-            , ( "body", body )
+            , ( "body", insert body )
             , ( "headers"
               , headers
                     |> Dict.toList
@@ -252,25 +257,25 @@ serveDir =
     Command "serve-dir"
 
 
-notFound : Html msg -> Response
+notFound : Html msg -> Response msg
 notFound body =
     Response
         { code = StatusCode 404
         , mime = html
         , cmd = serve
-        , body = JE.string <| Native.Helpers.stringify body
+        , body = body
         , headers = Dict.empty
         , cookies = Dict.empty
         }
 
 
-htmlResponse : Html msg -> Response
+htmlResponse : Html msg -> Response msg
 htmlResponse body =
     Response
-        { code = StatusCode 404
+        { code = StatusCode 200
         , mime = html
         , cmd = serve
-        , body = JE.string <| Native.Helpers.stringify body
+        , body = body
         , headers = Dict.empty
         , cookies = Dict.empty
         }
@@ -415,9 +420,9 @@ htmlResponse body =
 
 
 type alias ServerSpec model msg =
-    { init : Request -> Result Response ( model, Cmd msg )
+    { init : Request -> Result (Response msg) ( model, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
-    , response : model -> Maybe Response
+    , response : model -> Maybe (Response msg)
     , subscriptions : model -> Sub msg
     }
 
