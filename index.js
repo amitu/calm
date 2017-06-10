@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const temp = require('temp').track()
-const compiler = require('node-elm-compiler')
+const fs = require('fs');
+const temp = require('temp').track();
+const compiler = require('node-elm-compiler');
 const http = require('http');
 const url = require('url');
 
@@ -9,14 +9,14 @@ if (!fs.existsSync('./elm-package.json')) {
     fail(
         'Error: This command needs to be executed from the root of the ' +
         'elm project.'
-    )
+    );
 }
 
 if (
     process.argv.length !== 3
     || process.argv[2].substr(process.argv[2].length - 4) !== ".elm"
 ) {
-    fail('Usage: calm <Elm-File>.elm')
+    fail('Usage: calm <Elm-File>.elm');
 }
 
 var source = process.argv[2];
@@ -24,7 +24,7 @@ var source = process.argv[2];
 if (!fs.existsSync(source)) {
     fail(
         'Error: ' + source + ' does not exist.'
-    )
+    );
 }
 
 global.jsrefs = (function() {
@@ -63,8 +63,8 @@ var Elm = require(target);
 var app = Elm.Main.worker();
 
 function fail (msg) {
-  process.stderr.write(msg + "\n")
-  process.exit(1)
+  process.stderr.write(msg + "\n");
+  process.exit(1);
 }
 
 reqs = {};
@@ -84,7 +84,7 @@ function attrs(tree, w) {
                     for (var k in value) {
                         if (facts.hasOwnProperty(key)) {
                             var v = value[k];
-                            w(k); w(": "); w(v); w(";")
+                            w(k); w(": "); w(v); w(";");
                         }
                     }
                     w("\"");
@@ -138,7 +138,7 @@ http.createServer(function (req, res) {
     var id = idx.toString();
     reqs[id] = {req: req, res:res};
     var myUrl = new url.URL("http://127.0.0.1:8000" + req.url);
-    const GET = {}
+    const GET = {};
     myUrl.searchParams.forEach(function(value, name) {
         if (GET[name]) {
             GET[name].push(value);
